@@ -1,0 +1,13 @@
+{
+  "name": "vaayulabs-site",
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.14"
+  }
+}
