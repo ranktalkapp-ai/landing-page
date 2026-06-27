@@ -325,6 +325,9 @@
         <div id="formSuccess" class="hidden bg-green-900/30 border border-green-700/40 rounded-lg p-4 text-center">
           <p class="text-green-400 font-semibold">✓ Received! We'll reach out within 24 hours.</p>
         </div>
+        <div id="formError" class="hidden bg-red-900/30 border border-red-700/40 rounded-lg p-4 text-center">
+          <p class="text-red-400 font-semibold">Something went wrong. Please call or WhatsApp us directly.</p>
+        </div>
       </form>
     </div>
   </section>
@@ -355,19 +358,43 @@
       });
     });
 
-    // Simple form handler (replace with your backend/formspree endpoint)
-    function handleSubmit(e) {
+    async function handleSubmit(e) {
       e.preventDefault();
-      const btn = e.target.querySelector('button[type="submit"]');
+      const form = e.target;
+      const btn = form.querySelector('button[type="submit"]');
+      const successEl = document.getElementById('formSuccess');
+      const errorEl = document.getElementById('formError');
+
+      successEl.classList.add('hidden');
+      errorEl.classList.add('hidden');
       btn.textContent = 'Sending...';
       btn.disabled = true;
 
-      // Simulate submission — wire this to Formspree/EmailJS/your backend
-      setTimeout(() => {
-        document.getElementById('formSuccess').classList.remove('hidden');
-        btn.textContent = 'Sent!';
-        e.target.reset();
-      }, 1000);
+      try {
+        const res = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: document.getElementById('name').value.trim(),
+            phone: document.getElementById('phone').value.trim(),
+            website: document.getElementById('website').value.trim(),
+            service: document.getElementById('service').value,
+          }),
+        });
+
+        if (res.ok) {
+          successEl.classList.remove('hidden');
+          btn.textContent = 'Sent!';
+          form.reset();
+        } else {
+          throw new Error('Server error ' + res.status);
+        }
+      } catch (err) {
+        console.error(err);
+        errorEl.classList.remove('hidden');
+        btn.textContent = 'Request Free Audit →';
+        btn.disabled = false;
+      }
     }
 
     // Highlight active nav link on scroll
