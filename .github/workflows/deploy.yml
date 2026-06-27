@@ -4,45 +4,11 @@ on:
   push:
     branches: [main]
 
-env:
-  IMAGE: ghcr.io/${{ github.repository }}
-
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
-
-      - name: Copy docker-compose.yml to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: docker-compose.yml
-          target: /var/www/landing-page
-
       - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -52,13 +18,6 @@ jobs:
           script: |
             set -e
             cd /var/www/landing-page
-
-            # Auth to ghcr.io
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-            # Pull latest image and restart
-            GITHUB_REPO=${{ github.repository }} docker compose pull
-            GITHUB_REPO=${{ github.repository }} docker compose up -d --remove-orphans
-
-            # Cleanup old images
+            git pull origin main
+            docker compose up -d --build --remove-orphans
             docker image prune -f

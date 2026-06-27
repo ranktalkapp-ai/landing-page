@@ -1,30 +1,20 @@
 # vaayulabs Landing Page
 
-Hono static server + Telegram form submission. Auto-deploys via Docker on push to `main`.
+Hono static server + Telegram form submission. Auto-deploys on push to `main`.
 
 ---
 
 ## How It Works
 
 ```
-GitHub Actions (CI runner)
-  → builds Docker image from source code
-  → pushes image to ghcr.io/ranktalkapp-ai/landing-page
-
-VPS (Contabo)
-  → pulls the pre-built image from ghcr.io
-  → runs it as a container
+git push main
+  → GitHub Actions SSHs into VPS
+  → git pull origin main
+  → docker compose up --build
+  → app restarts on port 4000
 ```
 
-The VPS **never needs the source code**. Docker packages everything (Node, server.js, index.html) into the image at build time. The only files on the VPS are:
-
-```
-/var/www/landing-page/
-  docker-compose.yml   ← copied automatically by CI on every deploy
-  .env                 ← created manually once (holds your secrets)
-```
-
-No git, no Node, no npm install on the server.
+Source code lives on the VPS. Docker builds the image directly there — no external registry needed.
 
 ---
 
@@ -41,8 +31,7 @@ npm run dev       # http://localhost:3000
 ## Docker (local)
 
 ```bash
-docker build -t vaayulabs-site .
-docker run -p 3000:3000 --env-file .env vaayulabs-site
+docker compose up --build   # http://localhost:4000
 ```
 
 ---
@@ -52,31 +41,30 @@ docker run -p 3000:3000 --env-file .env vaayulabs-site
 ```bash
 # 1. Install Docker + Compose plugin
 curl -fsSL https://get.docker.com | sh
-apt install docker-compose-plugin -y
+apt install docker-compose-plugin git -y
 
-# 2. Create the app directory
-mkdir -p /var/www/landing-page
+# 2. Clone repo
+git clone https://github.com/ranktalkapp-ai/landing-page /var/www/landing-page
 cd /var/www/landing-page
 
-# 3. Create .env with your secrets
-cat > .env <<'EOF'
-TELEGRAM_BOT_TOKEN=your_token_here
-TELEGRAM_CHAT_ID=your_chat_id_here
-PORT=3000
-EOF
+# 3. Create .env
+cp .env.example .env
+nano .env   # paste TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+
+# 4. First run
+docker compose up -d --build
 ```
 
-After the first CI run, the container starts automatically. That's all the server needs.
+App runs at `http://YOUR_VPS_IP:4000`
 
 ---
 
 ## CI/CD (GitHub Actions)
 
-On every push to `main`:
-1. Builds Docker image from source
-2. Pushes to `ghcr.io/ranktalkapp-ai/landing-page:latest`
-3. SCPs `docker-compose.yml` to the VPS
-4. SSHs into VPS → pulls new image → restarts container
+On every push to `main`, GitHub Actions SSHs into the VPS and runs:
+```
+git pull → docker compose up --build -d → docker image prune
+```
 
 **GitHub Secrets to add** → Repo → Settings → Secrets → Actions:
 
@@ -86,17 +74,16 @@ On every push to `main`:
 | `VPS_USER` | `root` or SSH user |
 | `VPS_SSH_KEY` | contents of `~/.ssh/github_actions` private key |
 
-`GITHUB_TOKEN` is automatic — no setup needed.
-
-**SSH key setup (one-time):**
+**SSH key setup (one-time on your local machine):**
 ```bash
-# On your local machine — generate deploy key
+# Generate deploy key
 ssh-keygen -t ed25519 -C "github-actions" -f ~/.ssh/github_actions -N ""
 
-# Add public key to VPS authorized_keys
-cat ~/.ssh/github_actions.pub | ssh root@YOUR_VPS_IP "cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+# Add public key to VPS
+cat ~/.ssh/github_actions.pub | ssh root@YOUR_VPS_IP \
+  "cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 
-# Copy private key into GitHub secret VPS_SSH_KEY
+# Copy private key → paste into GitHub secret VPS_SSH_KEY
 cat ~/.ssh/github_actions
 ```
 
